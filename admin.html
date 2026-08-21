@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>CycleFuel PoC — Researcher dashboard</title>
+  <style>
+    :root{--ink:#20352f;--muted:#687a74;--sage:#315b4f;--pale:#edf4f0;--line:#dbe5e0;--risk:#9b4f41}*{box-sizing:border-box}body{margin:0;background:#f4f6f3;color:var(--ink);font:15px Inter,system-ui,sans-serif}.wrap{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:32px 0 70px}header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:26px}.brand{display:flex;align-items:center;gap:11px;font:600 22px Georgia,serif}.mark{width:38px;height:38px;border-radius:13px 13px 13px 4px;background:#a8c6b9;display:grid;place-items:center;font:800 16px Inter,sans-serif}.label{text-transform:uppercase;letter-spacing:1.4px;font-size:10px;font-weight:800;color:#799088}h1,h2{font-family:Georgia,serif;font-weight:500}h1{font-size:34px;margin:7px 0}.lead{color:var(--muted);line-height:1.6}.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:26px;box-shadow:0 7px 25px #2842390b;margin-bottom:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:var(--pale);border-radius:15px;padding:18px}.stat strong{display:block;font:500 28px Georgia,serif}.field{display:grid;gap:6px;margin:12px 0}.field span{font-size:12px;font-weight:750;color:#60736c}.field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px}.primary,.secondary{border-radius:99px;padding:12px 18px;font-weight:750;cursor:pointer}.primary{border:0;background:var(--sage);color:#fff}.secondary{border:1px solid var(--line);background:#fff;color:var(--ink)}.actions{display:flex;gap:10px;flex-wrap:wrap}.status{padding:13px 15px;border-radius:13px;background:var(--pale);color:#496b61;margin:15px 0;line-height:1.5}.error{background:#fff7f4;color:var(--risk)}.invite{word-break:break-all;background:#f7faf8;border:1px dashed #a8c6b9;border-radius:13px;padding:13px;margin:14px 0;font-family:ui-monospace,monospace;font-size:12px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;min-width:760px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.7px}.hide{display:none!important}@media(max-width:760px){.grid,.stats{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}.wrap{padding-top:20px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header><div class="brand"><span class="mark">C</span>CycleFuel</div><button id="disconnect" class="secondary hide">Disconnect administrator</button></header>
+    <section id="access" class="card">
+      <span class="label">PRIVATE RESEARCHER ACCESS</span><h1>Researcher dashboard</h1>
+      <p class="lead">Open your private administrator link. Never share that link with a participant.</p>
+      <div id="status" class="status">Waiting for the private administrator link.</div>
+      <form id="manual-form"><label class="field"><span>Secure API address</span><input id="api" type="url" autocomplete="off" placeholder="https://…trycloudflare.com" required></label><label class="field"><span>Administrator token</span><input id="token" type="password" autocomplete="off" required></label><button class="primary" type="submit">Connect</button></form>
+    </section>
+    <section id="dashboard" class="hide">
+      <span class="label">SYNTHETIC POC DATA ONLY</span><h1>Researcher dashboard</h1>
+      <p class="lead">Create a separate invitation for each tester. Participants can read only their own records; this administrator view can read all pseudonymous records.</p>
+      <div class="stats"><div class="stat"><strong id="participant-count">0</strong><span>Participant IDs with records</span></div><div class="stat"><strong id="record-count">0</strong><span>Total check-ins</span></div><div class="stat"><strong id="risk-count">0</strong><span>Safety flags</span></div></div>
+      <div class="grid" style="margin-top:18px">
+        <section class="card"><h2>Create a test invitation</h2><p class="lead">The new link can be shared through email, WeChat, WhatsApp, or another private channel. It is the participant's access key.</p><div class="actions"><button id="create-invite" class="primary">Create invitation</button><button id="share-invite" class="secondary hide">Share…</button></div><div id="invite-output" class="invite hide"></div><button id="copy-invite" class="secondary hide">Copy invitation link</button></section>
+        <section class="card"><h2>PoC boundaries</h2><p class="lead">Use synthetic test data only. This dashboard is not an emergency monitor. Establish consent, retention, deletion, incident response, and an external security review before collecting health data from real participants.</p><button id="refresh" class="secondary">Refresh records</button></section>
+      </div>
+      <section class="card"><h2>All pseudonymous check-ins</h2><div class="table-wrap"><table><thead><tr><th>Recorded</th><th>Participant</th><th>Energy</th><th>Stress</th><th>Meal pattern</th><th>Movement</th><th>Focus</th><th>Safety flag</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+    </section>
+  </main>
+  <script>
+    "use strict";
+    const KEY="cyclefuel.admin.connection.v1";let connection=null,currentInvitation="";const $=selector=>document.querySelector(selector);
+    function endpoint(value){try{const url=new URL(value);return url.protocol==="https:"?url.origin:null}catch{return null}}
+    function importLink(){const params=new URLSearchParams(location.hash.slice(1)),api=endpoint(params.get("api")||""),token=params.get("token")||"";if(api&&token.length>=32)localStorage.setItem(KEY,JSON.stringify({api,token}));if(location.hash)history.replaceState(null,"",location.pathname+location.search)}
+    function readConnection(){try{const value=JSON.parse(localStorage.getItem(KEY)||"null");return value&&endpoint(value.api)&&typeof value.token==="string"?{api:endpoint(value.api),token:value.token}:null}catch{return null}}
+    async function request(path,options={}){const response=await fetch(connection.api+path,{...options,headers:{authorization:"Bearer "+connection.token,"content-type":"application/json",...(options.headers||{})}});if(!response.ok)throw new Error("request_failed");return response.status===204?null:response.json()}
+    function setStatus(message,error=false){$("#status").textContent=message;$("#status").className="status"+(error?" error":"")}
+    async function connect(){connection=readConnection();if(!connection)return;setStatus("Checking private administrator access…");try{const me=await request("/api/v1/me");if(me.role!=="admin")throw new Error("admin_required");$("#access").classList.add("hide");$("#dashboard").classList.remove("hide");$("#disconnect").classList.remove("hide");await loadRecords()}catch{connection=null;setStatus("This administrator link is missing or invalid.",true)}}
+    async function loadRecords(){const data=await request("/api/v1/admin/checkins"),rows=Array.isArray(data.checkins)?data.checkins:[];$("#record-count").textContent=rows.length;$("#participant-count").textContent=new Set(rows.map(row=>row.subjectId)).size;$("#risk-count").textContent=rows.filter(row=>row.safetyTriggered).length;const body=$("#rows");body.replaceChildren();rows.forEach(row=>{const tr=document.createElement("tr"),values=[new Date(row.recordedAt).toLocaleString(),row.subjectId.slice(0,12)+"…",row.energy,row.stress,row.mealPattern,row.movement,row.supportFocus,row.safetyTriggered?"Yes":"No"];values.forEach(value=>{const td=document.createElement("td");td.textContent=String(value);tr.append(td)});body.append(tr)})}
+    async function createInvitation(){const button=$("#create-invite");button.disabled=true;button.textContent="Creating…";try{const data=await request("/api/v1/admin/invitations",{method:"POST",body:"{}"}),url=new URL("./",location.href);url.hash=new URLSearchParams({api:connection.api,token:data.token}).toString();currentInvitation=url.href;$("#invite-output").textContent=currentInvitation;$("#invite-output").classList.remove("hide");$("#copy-invite").classList.remove("hide");if(navigator.share)$("#share-invite").classList.remove("hide")}catch{alert("The invitation could not be created. Check the Mac connection and try again.")}finally{button.disabled=false;button.textContent="Create invitation"}}
+    async function copyInvitation(){await navigator.clipboard.writeText(currentInvitation);$("#copy-invite").textContent="Copied";setTimeout(()=>$("#copy-invite").textContent="Copy invitation link",1500)}
+    async function shareInvitation(){if(currentInvitation&&navigator.share)await navigator.share({title:"CycleFuel private test invitation",text:"Open your private CycleFuel PoC invitation:",url:currentInvitation})}
+    $("#manual-form").addEventListener("submit",event=>{event.preventDefault();const api=endpoint($("#api").value),token=$("#token").value.trim();if(!api||token.length<32){setStatus("Enter a valid HTTPS address and administrator token.",true);return}localStorage.setItem(KEY,JSON.stringify({api,token}));$("#token").value="";connect()});$("#create-invite").addEventListener("click",createInvitation);$("#copy-invite").addEventListener("click",copyInvitation);$("#share-invite").addEventListener("click",shareInvitation);$("#refresh").addEventListener("click",()=>loadRecords().catch(()=>alert("The Mac connection is unavailable.")));$("#disconnect").addEventListener("click",()=>{localStorage.removeItem(KEY);location.reload()});
+    importLink();connect();
+  </script>
+</body>
+</html>
